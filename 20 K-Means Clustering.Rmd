@@ -129,17 +129,19 @@ Other challenges include:
 ![](Figures/monsters_kmeans_12.png){width=850px}
 </center>
 
-## Simulate Data
+## Load Libraries and Set Seed Number
 
-To illustrate k-means clustering, let's simulate some data where there are obvious clusters. Load the tidyverse and tidymodels and then specify some centroids.
-
-```{r include=FALSE}
+```{r message=FALSE, warning=FALSE}
 # Load packages
 library(tidyverse)
 library(tidymodels)
 
 seed_num <- 25
 ```
+
+## Simulate Data
+
+To illustrate k-means clustering, let's simulate some data where there are obvious clusters. Load the tidyverse and tidymodels and then specify some centroids.
 
 ```{r}
 # Simulate centroids.
