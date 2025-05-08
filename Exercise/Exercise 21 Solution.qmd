@@ -1,0 +1,104 @@
+---
+title: "Exercise 21"
+author: "Marc Dotson"
+format: docx
+---
+
+1. Simulate data like we did in class but with 5 clusters and an additional discrete variable `z`.
+2. Tune `k` where `k = 1:10` and you cluster just on `x` and `y`.
+3. Produce a scree plot to compare model fit and choose `k`.
+4. Use `augment()` to append the predicted cluster using the best-fitting model and produce a cluster profile as a grouped summary for `x`, `y`, and `z`.
+5. Try and name each cluster based on the cluster profile.
+6. Render the Quarto document into Word and upload to Canvas.
+
+**Five points total, one point each for:**
+
+- **Simulating data with 5 clusters and x, y, and z where z is discrete.**
+- **Tuning k by running 10 models clustering on just x and y.**
+- **Creating a scree plot to compare model fit and select k.**
+- **Producing a cluster profile for x, y, and z and naming each cluster.**
+- **Submitting a rendered Word document.**
+
+## Simulate Data
+
+```{r}
+# Load packages.
+library(tidyverse)
+library(tidymodels)
+
+# Simulate centroids.
+centroids <- tibble(
+  cluster = factor(1:5), 
+  x_mean = c(5, 0, -3, 2, 7),
+  y_mean = c(-1, 1, -2, 5, 9),
+  z_prob = c(0.75, 0.10, 0.50, 0.80, 0.02),
+  num_obs = c(100, 150, 50, 200, 75)
+)
+
+# Simulate observations.
+set.seed(42)
+sim_data <- centroids |>
+  mutate(
+    x = pmap(list(n = num_obs, mean = x_mean), rnorm),
+    y = pmap(list(n = num_obs, mean = y_mean), rnorm),
+    z = pmap(list(n = num_obs, size = 1, p = z_prob), rbinom)
+  ) |> 
+  unnest(c(x, y, z))
+
+sim_data
+```
+
+## Hyperparameter Tuning
+
+```{r}
+# Select the clustering variables.
+sim_obs <- sim_data |> 
+  select(x, y)
+
+# Tune k.
+set.seed(42)
+fit_tune <- tibble(k = 1:10) |>
+  mutate(
+    fit_km = pmap(list(centers = k), kmeans, x = sim_obs),
+    model_fit = map(fit_km, glance)
+  ) |> 
+  unnest(model_fit)
+
+# Scree plot.
+ggplot(fit_tune, aes(x = k, y = tot.withinss)) +
+  geom_point() +
+  geom_line()
+```
+
+We know from simulating the data that `k = 5` and the scree plot agrees, with a clear elbow at `k = 5`.
+
+## Cluster Profile
+
+```{r}
+# Fit a k-means model with k = 5.
+set.seed(42)
+fit_km5 <- sim_data |> 
+  select(x, y) |> 
+  kmeans(centers = 5)
+
+# Append predicted clusters.
+sim_data_km5 <- augment(fit_km5, sim_data)
+
+# Produce a cluster profile.
+sim_data_km5 |> 
+  group_by(.cluster) |> 
+  summarize(
+    size = n(),
+    x_mean = mean(x),
+    y_mean = mean(y),
+    z_prop = mean(z)
+  )
+```
+
+We use the cluster profile to name each profile. Here's my take, without assigning any meaning to `x`, `y`, and `z`.
+
+1. **Riding High**: This cluster is high on `x` and `y` but lowest on `z`.
+2. **Y and Z**: This cluster is second highest on `y` and the highest on `z`.
+3. **Nothing**: This cluster is closest to zero across all three variables.
+4. **X Please**: This cluster is distinguished by being highest on `x` only.
+5. **Negative**: This cluster has negative values for both `x` and `y` and average `z`.
