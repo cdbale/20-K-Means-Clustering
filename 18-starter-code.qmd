@@ -1,0 +1,235 @@
+---
+title: "K-Means Clustering"
+format: docx
+editor: visual
+---
+
+## Student Ratings
+
+It's that time again: [studentratings.byu.edu](https://studentratings.byu.edu).
+
+## Load Libraries and Set Seed Number
+
+```{r}
+# Load packages
+library(tidyverse)
+library(tidymodels)
+
+seed_num <- 25
+```
+
+## Simulate Data
+
+To illustrate k-means clustering, let's simulate some data where there are obvious clusters.
+
+```{r}
+# Simulate centroids.
+centroids <- tibble(cluster = factor(1:3), 
+                    x_mean = c(5, 0, -3),
+                    y_mean = c(-1, 1, -2),
+                    num_obs = c(100, 150, 50))
+
+centroids
+```
+
+The `map()` function from {purrr} acts as a for loop that applies a function to each element of a vector or a list.
+
+```{r}
+# This is a simple example
+# Map is a for loop.
+map(list(1, 2, 3), log)
+```
+
+Now, we'll use `pmap` to use the centroids to simulate observations in each cluster. The `pmap()` function applies a function to each element of a list, but can be applied to multiple vectors at the same time.
+
+```{r}
+# we will use pmap to iterate over each row
+centroids
+```
+
+Generate data for each centroid using `pmap`.
+
+```{r}
+set.seed(seed_num)
+# Simulate observations.
+sim_data <- centroids |>
+  mutate(
+    # use names in your list that the function (rnorm, in this case) expects
+    x = pmap(list(n = num_obs, mean = x_mean), rnorm),
+    y = pmap(list(n = num_obs, mean = y_mean), rnorm)
+  ) |> 
+  # extract the results from each iteration
+  unnest(c(x, y))
+```
+
+View the generated data.
+
+```{r}
+sim_data
+```
+
+Now visualize the clusters.
+
+```{r}
+# Visualize the clusters.
+ggplot(sim_data, aes(x = x, y = y, color = cluster)) +
+  geom_point(size = 3, alpha = 0.5)
+```
+
+## Fit K-Means
+
+To fit a k-means model, we need to provide the variables we're clustering on and the number of centers (i.e., centroids). The starting place of the centroids is randomized, so be sure to set a seed.
+
+```{r}
+# Fit a k-means model.
+set.seed(seed_num)
+fit_km3 <- sim_data |> 
+  select(x, y) |> 
+  kmeans(centers = 3)
+
+fit_km3
+```
+
+## Evaluate Clusters
+
+This output is *messy*. We can tidy it.
+
+```{r}
+# Tidy model output.
+tidy(fit_km3)
+```
+
+To really evaluate clusters, we want to create a **cluster profile**. This looks a lot like the tidy output, except we can profile clusters on more than just the variables that we clustered on.
+
+To do this, we need to append the predicted clusters to the original data with `augment()` and then group by `.cluster` and produce a grouped summary.
+
+Note that the cluster *label* might not match how we simulated the data. This is called **label switching**.
+
+```{r}
+# Append predicted clusters.
+(initial_clusters <- augment(fit_km3, sim_data))
+```
+
+Compute profiles. "The average observation for each cluster looks like...". Pretend these are normalized variables `income` and `age`. What clusters did we create?
+
+```{r}
+initial_clusters |>
+  group_by(cluster) |>
+  summarize(across(c(x, y), mean)) |>
+  rename(income = x,
+         age = y)
+```
+
+## Did we "recover" the correct clusters???
+
+```{r}
+# Plot the k-means solution.
+ggplot(initial_clusters, aes(x = x, y = y, color = .cluster)) +
+  geom_point(size = 3, alpha = 0.5)
+```
+
+## How Do We Manage the Randomness of K-Means?
+
+Method 1: Use multiple starts!
+
+```{r}
+# Fit a k-means model.
+set.seed(seed_num)
+fit_km3 <- sim_data |> 
+  select(x, y) |> 
+  # add nstart argument - obtain 10 solutions, take the best one
+  kmeans(centers = 3, nstart = 10)
+
+# Append predicted clusters.
+better_initial_clusters <- augment(fit_km3, sim_data)
+```
+
+## But How Do We Know Which Solution is Best?
+
+What does your intuition tell you about what characteristic(s) define a good clustering solution?
+
+## Better Cluster Recovery
+
+```{r}
+# Plot the k-means solution.
+ggplot(better_initial_clusters, aes(x = x, y = y, color = .cluster)) +
+  geom_point(size = 3, alpha = 0.5)
+```
+
+## Handling Uncertainty
+
+- We can use multiple starts to overcome uncertainty about which points to assign to which clusters
+- What is a another source of uncertainty in cluster analysis?
+
+## Use Hyperparameter Tuning to Choose `k`
+
+The hyperparameter in k-means is `k` itself. Like before, we need to run many models and compare...something?
+
+We can't determine the best model by predictive fit (there isn't an outcome to predict), but we do have measures of model fit. We're interested here in the within-cluster sum of squares.
+
+```{r}
+# Glance at model fit.
+glance(fit_km3)
+```
+
+But that's just for one value of `k`.
+
+Instead of writing a for loop, we can use the `map()` and `pmap()` functions where arguments that we don't want to loop over are included after the function.
+
+```{r}
+# Select the clustering variables.
+sim_obs <- sim_data |> 
+  select(x, y)
+
+# Tune k.
+set.seed(seed_num)
+fit_tune <- tibble(k = 1:10) |>
+  mutate(
+    fit_km = pmap(list(centers = k), kmeans, x = sim_obs, nstart = 10),
+    model_fit = map(fit_km, glance)
+  ) |> 
+  unnest(model_fit)
+```
+
+
+```{r}
+fit_tune
+```
+
+We can compare the within-cluster sum of squares to produce a **scree plot** (a.k.a., an elbow plot).
+
+This represents the variance within the clusters. It decreases as `k` increases, but has a bend (or "elbow") around `k = 3`. This indicates that additional clusters have little value.
+
+```{r}
+# Scree plot.
+ggplot(fit_tune, aes(x = k, y = tot.withinss)) +
+  geom_point() +
+  geom_line()
+```
+
+## Visualizing Different `k` Values
+
+With simulated data, we knew it was 3 cluster all along. But let's visualize results for different `k` values.
+
+```{r}
+# Augment the cluster results with the actual data points.
+fit_recovery <- tibble(k = 2:7) |>
+  mutate(
+    fit_km = pmap(list(centers = k), kmeans, x = sim_obs, nstart = 10),
+    augment_data = map(fit_km, augment, data = sim_obs)
+  ) |> 
+  unnest(augment_data)
+```
+
+```{r}
+fit_recovery
+```
+
+Now we can plot the original observations using the clusters appended with `augment()`.
+
+```{r}
+# Plot each k-means solution.
+ggplot(fit_recovery, aes(x = x, y = y)) +
+  geom_point(aes(color = .cluster), alpha = 0.5) + 
+  facet_wrap(~ k)
+```
