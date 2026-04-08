@@ -19,6 +19,16 @@ format: docx
 - **Producing a cluster profile and naming each cluster.**
 - **Submitting a rendered Word document.**
 
+NOTE: The solution shown in this file follow the above instructions. However, if you chose to complete a cluster analysis on a data set of your choosing, use the following point breakdown:
+
+**Five points total, one point each for:**
+
+- **Import and clean the data.**
+- **Tune k by running multiple clustering models on the variables you chose.**
+- **Create a scree plot to compare model fit and select k.**
+- **Producing a cluster profile and name each cluster.**
+- **Submitting a rendered Word document.**
+
 ## Simulate Data
 
 ```{r}
