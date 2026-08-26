@@ -47,6 +47,11 @@ Now, we'll use `pmap` to use the centroids to simulate observations in each clus
 centroids
 ```
 
+```{r}
+rnorm(n = 100, mean = 10)
+```
+
+
 Generate data for each centroid using `pmap`.
 
 ```{r}
@@ -158,8 +163,8 @@ ggplot(better_initial_clusters, aes(x = x, y = y, color = .cluster)) +
 
 ## Handling Uncertainty
 
-- We can use multiple starts to overcome uncertainty about which points to assign to which clusters
-- What is a another source of uncertainty in cluster analysis?
+-   We can use multiple starts to overcome uncertainty about which points to assign to which clusters
+-   What is a another source of uncertainty in cluster analysis?
 
 ## Use Hyperparameter Tuning to Choose `k`
 
@@ -190,7 +195,6 @@ fit_tune <- tibble(k = 1:10) |>
   ) |> 
   unnest(model_fit)
 ```
-
 
 ```{r}
 fit_tune
